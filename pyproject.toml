@@ -11,5 +11,7 @@ dependencies = [
     "numpy>=2.0.2",
     "pandas>=2.2.3",
     "pydantic>=2.10.6",
+    "seaborn>=0.13.2",
+    "sqlalchemy>=2.0.38",
     "yfinance>=0.2.54",
 ]
