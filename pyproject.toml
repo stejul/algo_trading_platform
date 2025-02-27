@@ -11,4 +11,5 @@ dependencies = [
     "numpy>=2.0.2",
     "pandas>=2.2.3",
     "pydantic>=2.10.6",
+    "yfinance>=0.2.54",
 ]
