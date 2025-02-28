@@ -4,9 +4,10 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 
 from src.infrastructure.persistence.data_writer import DataWriter
-#from src.infrastructure.config import get_db_url
+from src.infrastructure.config import get_settings
 from src.infrastructure.logging import get_logger
 
+settings = get_settings()
 logger = get_logger(__name__)
 
 
@@ -36,8 +37,7 @@ class DatabaseWriter(DataWriter):
         """
         if self._engine is None:
             if self._connection_url is None:
-                #self._connection_url = get_db_url()
-                self._connection_url = "testUrl"
+                self._connection_url = settings.DB_URL
             self._engine = create_engine(self._connection_url)
         return self._engine
     
