@@ -29,7 +29,6 @@ class CsvWriter(DataWriter):
             bool: True if successful, False otherwise
         """
         try:
-            # Create directory if it doesn't exist
             dest_path = Path(destination)
             os.makedirs(dest_path.parent, exist_ok=True)
             
@@ -41,7 +40,6 @@ class CsvWriter(DataWriter):
             if 'index' not in kwargs:
                 kwargs['index'] = False
             
-            # Write to CSV
             data.to_csv(destination, **kwargs)
             logger.info(f"Successfully wrote data to {destination}")
             return True
@@ -79,9 +77,7 @@ class CsvWriter(DataWriter):
                 # Append mode and no header if file exists
                 data.to_csv(destination, mode='a', header=False, **kwargs)
             else:
-                # Create directory if it doesn't exist
                 os.makedirs(dest_path.parent, exist_ok=True)
-                # Write with header for new file
                 data.to_csv(destination, **kwargs)
             
             logger.info(f"Successfully appended data to {destination}")

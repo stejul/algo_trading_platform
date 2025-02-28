@@ -16,7 +16,6 @@ class MarketDataService:
     """
     Service class to fetch and process market data.
     """
-
     def __init__(self, data_source=settings.DEFAULT_DATA_SOURCE):
         self.data_source = data_source
         self.cache_dir = settings.CACHE_DIR
@@ -51,11 +50,9 @@ class MarketDataService:
             with open(cache_file, "rb") as f:
                 return pickle.load(f)
 
-        # Fetch data from the selected source
         logger.info(f"Fetching fresh data for {symbol} from {self.data_source}...")
         data = fetch_historical_data(symbol, start_date, end_date)
 
-        # Convert to Pandas DataFrame
         data_dict = [entry.model_dump() for entry in data]
 
         df = pd.DataFrame(data_dict, columns=["symbol", "timestamp", "open_price", "high_price", "low_price", "close_price", "volume"])

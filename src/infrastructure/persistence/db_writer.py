@@ -67,11 +67,9 @@ class DatabaseWriter(DataWriter):
             if 'index' not in kwargs:
                 kwargs['index'] = False
             
-            # Convert to DataFrame if needed
             if not isinstance(data, pd.DataFrame):
                 data = pd.DataFrame(data)
             
-            # Write to database
             data.to_sql(destination, engine, **kwargs)
             logger.info(f"Successfully wrote data to table {destination}")
             return True

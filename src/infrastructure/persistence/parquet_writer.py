@@ -29,15 +29,12 @@ class ParquetWriter(DataWriter):
             bool: True if successful, False otherwise
         """
         try:
-            # Create directory if it doesn't exist
             dest_path = Path(destination)
             os.makedirs(dest_path.parent, exist_ok=True)
             
-            # Convert to DataFrame if needed
             if not isinstance(data, pd.DataFrame):
                 data = pd.DataFrame(data)
             
-            # Write to parquet
             data.to_parquet(destination, **kwargs)
             logger.info(f"Successfully wrote data to {destination}")
             return True

@@ -30,16 +30,12 @@ class JsonWriter(DataWriter):
             bool: True if successful, False otherwise
         """
         try:
-            # Create directory if it doesn't exist
             dest_path = Path(destination)
             os.makedirs(dest_path.parent, exist_ok=True)
             
-            # Handle DataFrame vs dict/list
             if isinstance(data, pd.DataFrame):
-                # Convert DataFrame to JSON
                 data.to_json(destination, orient=kwargs.pop('orient', 'records'), **kwargs)
             else:
-                # Write dict/list directly to JSON
                 with open(destination, 'w') as f:
                     json.dump(data, f, **kwargs)
             
@@ -75,7 +71,6 @@ class JsonWriter(DataWriter):
             else:
                 data_to_append = data
             
-            # If file exists, read it and append
             if dest_path.exists():
                 with open(destination, 'r') as f:
                     existing_data = json.load(f)
@@ -87,10 +82,8 @@ class JsonWriter(DataWriter):
                 combined_data = existing_data + data_to_append
             else:
                 combined_data = data_to_append
-                # Create directory if it doesn't exist
                 os.makedirs(dest_path.parent, exist_ok=True)
             
-            # Write combined data
             with open(destination, 'w') as f:
                 json.dump(combined_data, f, **kwargs)
             
