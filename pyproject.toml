@@ -8,6 +8,7 @@ requires-python = ">=3.9"
 license = {file = "LICENSE.md"}
 dependencies = [
     "matplotlib>=3.9.4",
+    "mplfinance>=0.12.10b0",
     "numpy>=2.0.2",
     "pandas>=2.2.3",
     "pyarrow>=19.0.1",
