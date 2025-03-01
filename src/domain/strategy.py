@@ -103,3 +103,28 @@ class RSIStrategy(TradingStrategy):
         elif row["RSI"] > self.overbought:
             return "SELL"
         return None
+
+class TechnicalIndicators:
+    """ Class to compute additional technical indicators such as ATR, MACD, and Bollinger Bands. """
+    
+    @staticmethod
+    def compute_atr(data: pd.DataFrame, period=14):
+        data["high_low"] = data["high_price"] - data["low_price"]
+        data["high_close"] = abs(data["high_price"] - data["close_price"].shift())
+        data["low_close"] = abs(data["low_price"] - data["close_price"].shift())
+        tr = data[["high_low", "high_close", "low_close"]].max(axis=1)
+        data["ATR"] = tr.rolling(window=period).mean()
+        return data
+    
+    @staticmethod
+    def compute_macd(data: pd.DataFrame, short_period=12, long_period=26, signal_period=9):
+        data["MACD"] = data["close_price"].ewm(span=short_period, adjust=False).mean() - data["close_price"].ewm(span=long_period, adjust=False).mean()
+        data["MACD_Signal"] = data["MACD"].ewm(span=signal_period, adjust=False).mean()
+        return data
+    
+    @staticmethod
+    def compute_bollinger_bands(data: pd.DataFrame, period=20):
+        data["Bollinger_Mid"] = data["close_price"].rolling(window=period).mean()
+        data["Bollinger_Upper"] = data["Bollinger_Mid"] + (data["close_price"].rolling(window=period).std() * 2)
+        data["Bollinger_Lower"] = data["Bollinger_Mid"] - (data["close_price"].rolling(window=period).std() * 2)
+        return data

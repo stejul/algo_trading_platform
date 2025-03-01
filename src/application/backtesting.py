@@ -1,5 +1,7 @@
 import pandas as pd
-from typing import Type
+from typing import Type, Dict, Tuple
+from itertools import product
+import numpy as np
 from src.domain.strategy import TradingStrategy
 from src.infrastructure.logging import get_logger
 
@@ -8,22 +10,6 @@ logger = get_logger(__name__)
 class BacktestEngine:
     """
     A class for event-based backtesting of trading strategies.
-
-    Attributes:
-    ==========
-    strategy: TradingStrategy
-        The trading strategy to be tested.
-    initial_cash: float
-        The initial cash balance for backtesting.
-    ftc: float
-        Fixed transaction costs per trade (buy or sell).
-    ptc: float
-        Proportional transaction costs per trade (buy or sell).
-
-    Methods:
-    =======
-    run_backtest:
-        Executes the strategy over the dataset and calculates performance.
     """
 
     def __init__(self, strategy: Type[TradingStrategy], initial_cash=10_000, ftc=0.0, ptc=0.0):
@@ -57,6 +43,7 @@ class BacktestEngine:
         # Compute indicators inside the strategy
         data = self.strategy.compute_indicators(data)
         data["Position Size"] = 0  # Initialize position size
+        portfolio_values = []
 
         for i, row in data.iterrows():
             date = row["timestamp"]
@@ -69,25 +56,64 @@ class BacktestEngine:
                 self.execute_trade(date, price, "SELL")
 
             data.at[i, "Position Size"] = self.position
+            portfolio_values.append(self.cash + (self.position * price))
 
         # Close out all positions
         if self.position > 0:
             self.execute_trade(date, price, "SELL", self.position)
 
         # Compute final portfolio value
-        data["net_wealth"] = self.cash + (self.position * data["close_price"])
+        data["net_wealth"] = portfolio_values
+        returns = pd.Series(portfolio_values).pct_change().dropna()
+
         self.results = {
             "Final Balance": self.cash,
             "Final Net Wealth": data["net_wealth"].iloc[-1],
             "Performance (%)": ((data["net_wealth"].iloc[-1] - self.initial_cash) / self.initial_cash) * 100,
             "Total Trades": len(self.trades),
             "Position Size": data["Position Size"],
+            "Sharpe Ratio": self.compute_sharpe_ratio(returns),
+            "Sortino Ratio": self.compute_sortino_ratio(returns),
+            "Max Drawdown": self.compute_max_drawdown(data["net_wealth"]),
         }
 
         if "Stop Loss Price" in data.columns:
-            self.results["Stop Loss Price"] = data["Stop Loss Price"].fillna(method="ffill")
+            self.results["Stop Loss Price"] = data["Stop Loss Price"].ffill()
         else:
             logger.warning("No 'Stop Loss Price' found in strategy output. Stop-loss plot will be skipped.")
         
         self.results["net_wealth"] = data["net_wealth"].copy()
         return self.results
+
+    def compute_sharpe_ratio(self, returns: pd.Series, risk_free_rate=0.01):
+        return (returns.mean() - risk_free_rate) / returns.std() if returns.std() != 0 else np.nan
+
+    def compute_max_drawdown(self, portfolio_values: pd.Series):
+        drawdown = portfolio_values / portfolio_values.cummax() - 1
+        return drawdown.min()
+
+    def compute_sortino_ratio(self, returns: pd.Series, risk_free_rate=0.01):
+        downside_returns = returns[returns < 0]
+        return (returns.mean() - risk_free_rate) / downside_returns.std() if downside_returns.std() != 0 else np.nan
+
+    @staticmethod
+    def optimize_parameters(data: pd.DataFrame, strategy_class: Type[TradingStrategy], param_grid: Dict[str, list]) -> Tuple[Dict[str, float], Dict[str, any]]:
+        """Runs Grid Search to optimize strategy parameters."""
+        param_combinations = list(product(*param_grid.values()))
+        best_performance = -float("inf")
+        best_params = None
+        best_results = None
+
+        for params in param_combinations:
+            strategy = strategy_class(**dict(zip(param_grid.keys(), params)))
+            engine = BacktestEngine(strategy)
+            results = engine.run_backtest(data.copy())
+            performance = results["Performance (%)"]
+            
+            if performance > best_performance:
+                best_performance = performance
+                best_params = dict(zip(param_grid.keys(), params))
+                best_results = results
+
+        logger.info(f"Best parameters: {best_params} with {best_performance:.2f}% return")
+        return best_params, best_results
