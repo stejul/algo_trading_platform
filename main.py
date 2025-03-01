@@ -1,7 +1,7 @@
-import datetime as dt
+import pandas as pd
 from src.application.market_data import MarketDataService
-#from src.application.execution import ExecutionService
-from src.domain.strategy import SMAStrategy# Example strategy
+from src.domain.strategy import SMAStrategy, MomentumStrategy, MeanReversionStrategy
+from src.application.backtesting import BacktestEngine
 from src.infrastructure.logging import get_logger
 from src.utils.visualization import TradingVisualizer
 
@@ -12,44 +12,35 @@ if __name__ == "__main__":
 
     # Initialize Services
     market_data_service = MarketDataService()
-    #execution_service = ExecutionService()
 
     # Fetch Market Data
-    start_date = "2000-01-01"
-    end_date = dt.date.today().strftime("%Y-%m-%d")
+    start_date = "2023-01-01"
+    end_date = "2024-01-01"
     symbol = "AAPL"
 
     df = market_data_service.get_historical_data(symbol, start_date, end_date)
     logger.info(f"Market data fetched successfully: {df.shape[0]} rows")
 
-    # Initialize Strategy
-    strategy = SMAStrategy(short_window = 50, long_window=200)
+    # Ensure timestamp column is in datetime format
+    df["timestamp"] = pd.to_datetime(df["timestamp"])
 
-    # Run Strategy
-    signals = strategy.generate_signals(df)
-    logger.info(f"Generated {len(signals)} trading signals")
+    # Select Strategy
+    strategy = SMAStrategy(short_window=50, long_window=200)
+    strategy_name = strategy.__class__.__name__
 
-    # Execute Trades
-    #for signal in signals:
-        #execution_service.execute_trade(signal)
-    print("Signals")
-    print(signals[["timestamp", "close_price", "signal"]].head(10))
-    print("DF")
-    print(df.head(10))
+    # Compute Indicators & Generate Signals
+    df = strategy.compute_indicators(df)
+    df["signal"] = df.apply(strategy.generate_signal, axis=1)
+    logger.info(f"Generated {df['signal'].notna().sum()} trading signals")
 
-    indicators = {
-        "SMA Short": "SMA_Short",
-        "SMA Long": "SMA_Long",
-        "Momentum": "momentum",
-        "Rolling Mean": "rolling_mean",
-        "Upper Band": "upper_band",
-        "Lower Band": "lower_band",
-    }
+    # Run Backtest
+    engine = BacktestEngine(strategy)
+    results = engine.run_backtest(df)
 
-    # Remove unused indicators
-    indicators = {k: v for k, v in indicators.items() if v in signals.columns}
-    
-    TradingVisualizer.plot_candlestick_with_signals(signals[signals["timestamp"] >= "2024-01-01"])
-    TradingVisualizer.plot_indicators(signals, indicators, title="Trading Strategy Visualization")
+    # Visualize Strategy-Specific Indicators
+    TradingVisualizer.plot_candlestick_with_signals(df, df)
+    TradingVisualizer.plot_strategy_indicators(df, strategy_name)
+    TradingVisualizer.plot_portfolio_value(pd.DataFrame({"timestamp": df["timestamp"], "net_wealth": df["close_price"]}))
+    TradingVisualizer.print_backtest_results(results)
 
     logger.info("Trading run completed successfully.")
