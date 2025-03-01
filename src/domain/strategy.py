@@ -78,3 +78,28 @@ class MeanReversionStrategy(TradingStrategy):
         elif row["zscore"] > self.threshold:
             return "SELL"
         return "HOLD"
+
+class RSIStrategy(TradingStrategy):
+    """ Relative Strength Index (RSI) Trading Strategy. """
+
+    def __init__(self, period=14, overbought=70, oversold=30):
+        self.period = period
+        self.overbought = overbought
+        self.oversold = oversold
+
+    def compute_indicators(self, data: pd.DataFrame) -> pd.DataFrame:
+        """ Computes the RSI indicator. """
+        delta = data["close_price"].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=self.period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=self.period).mean()
+        rs = gain / loss
+        data["RSI"] = 100 - (100 / (1 + rs))
+        return data
+
+    def generate_signal(self, row: pd.Series):
+        """ Generates trade signals based on RSI levels. """
+        if row["RSI"] < self.oversold:
+            return "BUY"
+        elif row["RSI"] > self.overbought:
+            return "SELL"
+        return None

@@ -1,6 +1,9 @@
 import pandas as pd
 from typing import Type
 from src.domain.strategy import TradingStrategy
+from src.infrastructure.logging import get_logger
+
+logger = get_logger(__name__)
 
 class BacktestEngine:
     """
@@ -31,7 +34,7 @@ class BacktestEngine:
         self.ptc = ptc
         self.position = 0  # Number of shares held
         self.trades = []
-        self.results = None  # Stores the backtest results
+        self.results = {}  # Stores the backtest results
 
     def execute_trade(self, date, price, action, units=None):
         """Executes a trade (buy/sell) and updates cash balance."""
@@ -53,6 +56,7 @@ class BacktestEngine:
         """Runs the backtest on historical data using the strategy."""
         # Compute indicators inside the strategy
         data = self.strategy.compute_indicators(data)
+        data["Position Size"] = 0  # Initialize position size
 
         for i, row in data.iterrows():
             date = row["timestamp"]
@@ -64,16 +68,26 @@ class BacktestEngine:
             elif signal == "SELL":
                 self.execute_trade(date, price, "SELL")
 
+            data.at[i, "Position Size"] = self.position
+
         # Close out all positions
         if self.position > 0:
             self.execute_trade(date, price, "SELL", self.position)
 
         # Compute final portfolio value
-        net_wealth = self.cash + (self.position * price)
+        data["net_wealth"] = self.cash + (self.position * data["close_price"])
         self.results = {
             "Final Balance": self.cash,
-            "Final Net Wealth": net_wealth,
-            "Performance (%)": ((net_wealth - self.initial_cash) / self.initial_cash) * 100,
+            "Final Net Wealth": data["net_wealth"].iloc[-1],
+            "Performance (%)": ((data["net_wealth"].iloc[-1] - self.initial_cash) / self.initial_cash) * 100,
             "Total Trades": len(self.trades),
+            "Position Size": data["Position Size"],
         }
+
+        if "Stop Loss Price" in data.columns:
+            self.results["Stop Loss Price"] = data["Stop Loss Price"].fillna(method="ffill")
+        else:
+            logger.warning("No 'Stop Loss Price' found in strategy output. Stop-loss plot will be skipped.")
+        
+        self.results["net_wealth"] = data["net_wealth"].copy()
         return self.results

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import mplfinance as mpf
 import pandas as pd
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 from src.infrastructure.logging import get_logger
 
 logger = get_logger(__name__)
@@ -9,15 +9,11 @@ logger = get_logger(__name__)
 class TradingVisualizer:
     """
     A class for visualizing backtesting results, including market data, trading signals,
-    portfolio performance, and strategy indicators.
+    portfolio performance, risk metrics, and strategy indicators.
     """
 
     @staticmethod
-    def plot_candlestick_with_signals(
-        market_data: pd.DataFrame,
-        signals: Optional[pd.DataFrame] = None,
-        title: str = "Candlestick Chart with Signals",
-    ):
+    def plot_candlestick_with_signals(market_data: pd.DataFrame, signals: Optional[pd.DataFrame] = None, title: str = "Candlestick Chart with Signals"):
         """Plots a candlestick chart with optional buy/sell signals."""
         logger.info("Trying to plot candlestick with signals")
         try:
@@ -28,13 +24,7 @@ class TradingVisualizer:
             df = market_data.copy()
             df.index = pd.to_datetime(df["timestamp"])
 
-            expected_cols = {
-                "open_price": "Open",
-                "high_price": "High",
-                "low_price": "Low",
-                "close_price": "Close",
-                "volume": "Volume",
-            }
+            expected_cols = {"open_price": "Open", "high_price": "High", "low_price": "Low", "close_price": "Close", "volume": "Volume"}
             df = df.rename(columns=expected_cols)
 
             missing_cols = [col for col in ["Open", "High", "Low", "Close", "Volume"] if col not in df.columns]
@@ -42,95 +32,116 @@ class TradingVisualizer:
                 logger.warning(f"Missing required columns {missing_cols}, skipping candlestick plot.")
                 return
 
-            fig, (ax_candle, ax_volume) = plt.subplots(
-                2, figsize=(12, 8), gridspec_kw={"height_ratios": [3, 1]}
-            )
-            mpf.plot(df, type="candle", ax=ax_candle, style="charles", volume=ax_volume)
-
-            if signals is not None and "signal" in signals.columns:
-                buy_signals = signals[signals["signal"] == "BUY"]
-                sell_signals = signals[signals["signal"] == "SELL"]
-
-                ax_candle.scatter(
-                    buy_signals.index, buy_signals["Close"], 
-                    marker="^", color="g", s=100, label="Buy Signal"
-                )
-                ax_candle.scatter(
-                    sell_signals.index, sell_signals["Close"], 
-                    marker="v", color="r", s=100, label="Sell Signal"
-                )
-
-            ax_candle.set_title(title)
-            ax_candle.legend()
+            fig, ax = plt.subplots(figsize=(12, 6))
+            mpf.plot(df, type='candle', ax=ax, style='charles', volume=False)
+            ax.set_title(title)  
             plt.show()
         except Exception as e:
-            logger.warning(f"Couldn't plot candlestick Chart: {e}")
+            logger.warning(f"Couldn't plot candlestick chart: {e}")
 
     @staticmethod
-    def plot_strategy_indicators(
-        market_data: pd.DataFrame, strategy_name: str, title: str = "Market Data with Indicators"
-    ):
-        """
-        Automatically detects and plots the relevant indicators for a given strategy.
+    def plot_position_sizing(trades: pd.DataFrame):
+        """Plots position sizing over time."""
+        if trades.empty or "timestamp" not in trades or "Position Size" not in trades:
+            logger.warning("Skipping position sizing plot: Required data missing.")
+            return
 
-        Args:
-            market_data (pd.DataFrame): Market data containing price and indicators.
-            strategy_name (str): The strategy for which to plot indicators.
-            title (str): The title of the plot.
-        """
-        logger.info(f"Trying to plot indicators for {strategy_name}")
+        trades = trades.copy()
+        trades["timestamp"] = pd.to_datetime(trades["timestamp"])
+        trades.set_index("timestamp", inplace=True)
 
-        try:
-            df = market_data.copy()
-            df.index = pd.to_datetime(df["timestamp"])
+        plt.figure(figsize=(12, 6))
+        plt.bar(trades.index, trades["Position Size"], color="purple", alpha=0.6)
+        plt.title("Position Size Over Time")
+        plt.xlabel("Date")
+        plt.ylabel("Position Size")
+        plt.xticks(rotation=45)
+        plt.grid()
+        plt.show()
+        logger.info("Position sizing plot generated successfully")
 
-            strategy_indicators = {
-                "SMAStrategy": ["short_sma", "long_sma"],
-                "MomentumStrategy": ["momentum"],
-                "MeanReversionStrategy": ["mean", "std", "zscore"],
-            }
+    @staticmethod
+    def plot_stop_loss_levels(data: pd.DataFrame, stop_loss_prices: pd.Series):
+        """Plots stop-loss levels alongside stock prices."""
+        if not isinstance(stop_loss_prices, pd.Series):
+            logger.error("Expected a Pandas Series for stop-loss prices but received a different type.")
+            return
 
-            if strategy_name not in strategy_indicators:
-                logger.warning(f"Unknown strategy: {strategy_name}. No indicators available.")
-                return
+        if stop_loss_prices.empty:
+            logger.warning("Skipping stop-loss plot: 'Stop Loss Price' data is missing.")
+            return
 
-            fig, ax = plt.subplots(figsize=(12, 6))
-            ax.plot(df.index, df["close_price"], label="Close Price", color="blue")
+        plt.figure(figsize=(12, 6))
+        plt.plot(data.index, data['close_price'], label='Close Price', color='blue', alpha=0.6)
+        plt.plot(data.index, stop_loss_prices, label='Stop Loss Level', linestyle='--', color='red')
+        plt.legend()
+        plt.title("Stop Loss Levels vs Price")
+        plt.xlabel("Date")
+        plt.ylabel("Price (USD)")
+        plt.grid()
+        plt.show()
+        logger.info("Stop-loss level plot generated successfully")
 
-            for col in strategy_indicators[strategy_name]:
-                if col in df.columns:
-                    ax.plot(df.index, df[col], label=col, linestyle="--")
-
-            ax.set_title(title)
-            ax.legend()
-            plt.show()
-        except Exception as e:
-            logger.warning(f"Couldn't plot indicators for {strategy_name}: {e}")
 
     @staticmethod
     def plot_portfolio_value(portfolio_data: pd.DataFrame, title: str = "Portfolio Value Over Time"):
         """Plots portfolio value over time based on backtesting results."""
         try:
-            df = portfolio_data.copy()
-            df.index = pd.to_datetime(df["timestamp"])
+            if portfolio_data.empty or "timestamp" not in portfolio_data or "net_wealth" not in portfolio_data:
+                logger.warning("Skipping portfolio value plot: Required data missing.")
+                return
+
+            portfolio_data = portfolio_data.copy()
+            portfolio_data["timestamp"] = pd.to_datetime(portfolio_data["timestamp"])
+            portfolio_data.set_index("timestamp", inplace=True)
 
             plt.figure(figsize=(12, 6))
-            plt.plot(df.index, df["net_wealth"], label="Net Wealth", color="green")
+            plt.plot(portfolio_data.index, portfolio_data["net_wealth"], label="Net Wealth", color="green")
             plt.xlabel("Date")
             plt.ylabel("Portfolio Value")
             plt.title(title)
             plt.legend()
             plt.grid()
             plt.show()
+            logger.info("Portfolio value plot generated successfully")
         except Exception as e:
             logger.warning(f"Couldn't plot portfolio value: {e}")
 
+
     @staticmethod
-    def print_backtest_results(results: Dict[str, float]):
+    def plot_drawdown(portfolio_values: pd.Series, max_drawdown: float):
+        """ Plots the portfolio value with drawdown levels. """
+        if portfolio_values is None or portfolio_values.empty:
+            logger.warning("Skipping drawdown plot: Portfolio values are empty.")
+            return
+
+        portfolio_values = portfolio_values.copy()
+        portfolio_values.index = pd.to_datetime(portfolio_values.index)
+
+        drawdown = portfolio_values / portfolio_values.cummax() - 1
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(portfolio_values, label="Portfolio Value", color="black")
+        plt.fill_between(portfolio_values.index, portfolio_values, portfolio_values.cummax() * (1 - max_drawdown),
+                         color="red", alpha=0.3, label="Max Drawdown Zone")
+        plt.legend()
+        plt.title("Portfolio Value and Drawdown")
+        plt.xlabel("Date")
+        plt.ylabel("Portfolio Value")
+        plt.grid()
+        plt.show()
+        logger.info("Drawdown plot generated successfully")
+
+    @staticmethod
+    def print_backtest_results(results: Dict[str, Union[float, pd.Series]]):
         """Prints the final results of the backtest."""
         print("=" * 50)
         print(" Backtest Performance Summary ")
         print("=" * 50)
         for key, value in results.items():
-            print(f"{key}: {value:.2f}")
+            if isinstance(value, pd.Series):
+                print(f"{key}: Series with {len(value)} values")
+            else:
+                print(f"{key}: {value:.2f}")
         print("=" * 50)
+        logger.info("Backtest results printed successfully")
