@@ -93,8 +93,10 @@ pytest tests/
 ├── README.md
 ├── LICENSE.md
 ├── .env
+```
 
 ### ENV Variables
+
 ```
 APP_ENV=development
 DEBUG=true
@@ -114,7 +116,6 @@ CACHE_DIR=cache/
 
 LOG_FILE_PATH=logs/trading_platform.log
 ```
-
 
 ## License
 [MIT License](LICENSE)
